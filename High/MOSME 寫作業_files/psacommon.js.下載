@@ -1,0 +1,344 @@
+﻿$(document).ready(function () {
+    if ($("input").data('events') == undefined) {
+        $("input").unbind('keyup');
+        $("input").keyup(function (e) {
+            if (e.which == 13) {
+                $("#" + $(this).attr("targetkey")).click();
+            }
+        });
+    }
+
+    $('[data-toggle=tooltip]').tooltip();
+});
+
+
+function PSADialog(parameter)
+{
+    // parameter = {action:[yesno,ok,wait],onyes:function onyes(),onno:function onno()}
+    var dialoghtml =
+        '<div class="modal fade" id="psa-dialog" role="dialog" data-toggle="modal" data-backdrop="static" data-keyboard="false">' +
+        '    <div class="modal-dialog">' +
+        '        <div class="modal-content">' +
+        '            <div class="modal-header">' +
+        '                <h4 class="modal-title psa-dialog-title">訊息</h4>' +
+        '            </div>' +
+        '            <div class="modal-body psa-dialog-body">' +
+        '            </div>' +
+        '            <div class="modal-footer">' +
+        '                <button type="button" class="btn btn-default psa-dialog-button psa-dialog-yes">是的</button>' +
+        '                <button type="button" class="btn btn-default psa-dialog-button psa-dialog-no">不是</button>' +
+        '                <button type="button" class="btn btn-default psa-dialog-button psa-dialog-close" data-dismiss="modal">關閉</button>' +
+        '            </div>' +
+        '        </div>' +
+        '    </div>' +
+        '</div>';
+
+    if ($("#psa-dialog").length ==0)
+    {
+        $("body").append(dialoghtml);
+    }
+
+    if (parameter.showDuration == undefined || parameter.showDuration == "")
+    {
+        // 當設定顯示後自動於幾秒內關閉訊息未設定時，主動設定
+        // 代表1.5秒之後關閉
+        parameter.showDuration = 1000;
+    }
+
+    if (parameter.keepwindow == undefined || parameter.keepwindow == "")
+    {
+        parameter.keepwindow = false;
+    }
+
+    $(".psa-dialog-title").text(parameter.title);
+    if (parameter.contenttype == "html") {
+        $(".psa-dialog-body").html(parameter.message);
+    }
+    else {
+        $(".psa-dialog-body").text(parameter.message);
+    }
+
+    // 先恢復所有按鈕
+    $(".psa-dialog-button").show();
+
+    switch (parameter.action)
+    {
+        case "yesno":
+            {
+                $(".psa-dialog-close").hide();
+
+                $(".psa-dialog-yes").unbind('click');
+                $(".psa-dialog-yes").click(function () {
+                    if (parameter.onyes) {
+                        parameter.onyes();
+                    }
+
+                    if (!parameter.keepwindow)
+                        $("#psa-dialog").modal('hide');
+                });
+
+                $(".psa-dialog-no").unbind('click');
+                $(".psa-dialog-no").click(function () {
+                    if (parameter.onno)
+                    {
+                        parameter.onno();
+                    }
+
+                    $("#psa-dialog").modal('hide');
+                });
+
+                if (!$("#psa-dialog").is(":visible"))
+                    $("#psa-dialog").modal('show');
+            }
+            break;
+        case "ok":
+            {
+                $(".psa-dialog-yes").hide();
+                $(".psa-dialog-no").hide();
+
+                $("#psa-dialog").modal('show');
+            }
+            break;
+        case "autoclose":
+            {
+                $(".psa-dialog-button").hide();
+                $("#psa-dialog").modal('show');
+
+                setTimeout(function () {
+                    $("#psa-dialog").modal('hide');
+                },parameter.showDuration);
+            }
+            break;
+        case "show":
+            {
+                $(".psa-dialog-button").hide();
+                if (!$("#psa-dialog").is(":visible"))
+                    $("#psa-dialog").modal('show');
+            }
+            break;
+        case "hide":
+            {
+                $("#psa-dialog").modal('hide');
+            }
+            break;
+    }
+}
+
+function PSAAjax(parameter)
+{
+    var jqxhr = $.ajax({
+        url: parameter.url,
+        method: "POST",
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        data: JSON.stringify({ data: Base64.encode(JSON.stringify(parameter.data)) }),
+        error: function (xhr, status, error) {
+            //var err = eval("(" + xhr.responseText + ")");
+            //alert(err.Message);
+        },
+        xhr: function () {
+            var xhr = new window.XMLHttpRequest();
+            xhr.addEventListener("progress", function (evt) {
+                if (evt.lengthComputable) {
+                    var percentComplete = evt.loaded / evt.total;
+                    if (parameter.onprogress) {
+                        parameter.onprogress(percentComplete);
+                    }                    
+                }
+            }, false);
+            return xhr;
+        }
+    }).done(function (jdata) {
+        var obj = JSON.parse(jdata);
+        if (parameter.onfinish)
+            parameter.onfinish(obj);
+    })
+    .fail(function () {
+        setTimeout(function () {
+            alert("執行動作發生錯誤");
+        }, 500);
+    });
+}
+
+// 直接回傳 promise
+function PSAAjaxV2({ url, data, beforeSend, complete }) {
+    return $.ajax({
+        url: url,
+        method: "POST",
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        beforeSend: beforeSend,
+        data: JSON.stringify({ data: Base64.encode(JSON.stringify(data)) }),
+    }).fail(() => {
+        setTimeout(function () {
+            alert("執行動作發生錯誤");
+        }, 500);
+    }).always(complete);
+}
+
+function PSAAjaxSync(parameter) {
+    var jqxhr = $.ajax({
+        url: parameter.url,
+        method: "POST",
+        contentType: "application/json; charset=utf-8",
+        dataType: "json",
+        data: JSON.stringify({ data: Base64.encode(JSON.stringify(parameter.data)) }),
+        error: function (xhr, status, error) {
+            var err = eval("(" + xhr.responseText + ")");
+            alert(err.Message);
+        },
+        async: false
+    }).done(function (jdata) {
+        var obj = JSON.parse(jdata);
+        if (parameter.onfinish)
+            parameter.onfinish(obj);
+    })
+        .fail(function () {
+            setTimeout(function () {
+                alert("執行動作發生錯誤");
+            }, 500);
+        });
+}
+
+function PSAAjax2(parameter)
+{
+    if (parameter.msgonloading == undefined || parameter.msgonloading == "")
+    {
+        parameter.msgonloading = "執行中...";
+    }
+
+    if (parameter.msgonfinish == undefined || parameter.msgonfinish == "")
+    {
+        parameter.msgonfinish = "執行成功";
+    }
+
+    var doAction = function () {
+        // 手動關閉
+        PSADialog({ message: parameter.msgonloading, action: "show", keepwindow:true });
+
+        setTimeout(function () {
+            PSAAjax({
+                url: parameter.url, data: parameter.data, onfinish: function (obj) {
+                    if (obj.resp == "0") {
+                        PSADialog({ message: parameter.msgonfinish, action: "autoclose" });
+                        setTimeout(function () {
+                            parameter.onfinish(obj);
+                        }, 500);                        
+                    }
+                    else {
+                        PSADialog({ message: obj.msg, action: "ok" });
+                    }
+                }
+            });
+        }, 300);        
+    };
+
+    if (parameter.msgprompt == "" || parameter.msgprompt == undefined)
+    {
+        doAction();
+    }
+    else
+    {
+        PSADialog({
+            message: parameter.msgprompt, action: "yesno", onyes: function () {
+                doAction();
+            },keepwindow:true
+        });
+    }
+}
+
+function showOptions(id)
+{
+    $("#" + id).show();
+
+    $(".menu-options").unbind('mouseleave');
+    $(".menu-options").mouseleave(function () {
+        $("#" + id).hide();
+    });
+}
+
+function callFileUpload(parameters)
+{
+    if (!parameters.autoUpload)
+        parameters.autoUpload = true;
+
+    if ($('#PSAFileupload').length == 0)
+    {
+        $("body").append('<input type="file" class="psafileupload" id="PSAFileupload" style="display:none;" ' + (parameters.multiple?"multiple":"") + '/>');
+    }
+
+    if ($(".progress").length == 0)
+    {
+        $("body").append('<div class="PSAProgress progress" style="position:fixed;bottom:0px;width:100%;height:30px;left:0px;"><div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0%;"><span class="sr-only">0% 已完成</span></div></div>');
+    }
+
+    $('#PSAFileupload').fileupload({
+        dataType: 'json',
+        url: parameters.url,
+        autoUpload: parameters.autoUpload,
+        done: function (e, data) {
+            if (parameters.onfinish)
+                parameters.onfinish(data);
+
+            // 1.5 sec 後隱藏 progress bar
+            setTimeout(function () {
+                $(".PSAProgress").hide();
+            }, 1500);
+        },
+        fail:function (data) {
+            alert("Fail!");
+        }
+    }).on('fileuploadprogressall', function (e, data) {
+        $(".PSAProgress").show();
+        var progress = parseInt(data.loaded / data.total * 100, 10);
+        $('.PSAProgress .progress-bar').css('width', progress + '%');
+        $(".sr-only").text(progress + '% 已完成');
+    });
+
+    $('#PSAFileupload').click();
+}
+
+function getTemplate(tplname,callbackfunc)
+{
+    $.get("/templates/" + tplname + ".html?s=" + Math.random(), function (data) {
+        callbackfunc(data);
+    });
+}
+
+function alert(msg) {
+    $.notify({
+        message: msg,
+        icon: 'fas fa-info-circle',
+    }, {
+            // settings
+            type: 'success',
+            delay: 3000,
+            animate: {
+                enter: 'animated fadeInDown',
+                exit: 'animated fadeOutUp'
+            }, placement: {
+                from: "bottom",
+                align: "center"
+            },
+            dismiss: false
+        });
+}
+
+function info(msg) {
+    $.notify({
+        message: msg,
+        icon: 'fas fa-info-circle',
+    }, {
+        // settings
+        type: 'success',
+        delay: 3000,
+        animate: {
+            enter: 'animated fadeInDown',
+            exit: 'animated fadeOutUp'
+        }, placement: {
+            from: "bottom",
+            align: "center"
+        },
+        dismiss: false
+    });
+}
